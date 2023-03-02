@@ -30,6 +30,10 @@ if [ "$current_driver" == "r8169" ]; then
   echo "Switching to vfio-pci driver..."
   echo 0000:0c:00.0 > /sys/bus/pci/drivers/r8169/unbind
   echo 0000:0c:00.0 > /sys/bus/pci/drivers/vfio-pci/bind
+  echo "reloading sfp card driver"
+  echo 0000:07:00.0 > /sys/bus/pci/drivers/mlx4_core/unbind
+  echo 0000:07:00.0 > /sys/bus/pci/drivers/mlx4_core/bind  
+  echo "driver reloaded"
 else
   echo "Switching to r8169 driver..."
   echo 0000:0c:00.0 > /sys/bus/pci/drivers/vfio-pci/unbind
