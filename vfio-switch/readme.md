@@ -5,10 +5,10 @@ Prerequisites
 
 This script requires the following dependencies to be installed:
 
-    A shell environment (e.g. bash)
-    The modprobe utility
-    The lsmod utility
-    Root privileges
+* A shell environment (e.g. bash)
+* The modprobe utility
+* The lsmod utility
+* Root privileges
 
 Usage
 
@@ -22,18 +22,18 @@ To use the script, simply run it with root privileges and pass any necessary opt
 
 For example, to switch the device with PCI address 0000:0b:00.0 to vfio-pci, run the following command:
 
-bash
-
+```bash
 sudo ./vfio-switch.sh -d 0000:0b:00.0
+```
 
 You can also switch multiple devices by specifying them as a comma-separated list:
 
-bash
-
+```bash
 sudo ./vfio-switch.sh -d 0000:0b:00.0,0000:0c:00.0
+```
 
 To switch the devices back to their previous drivers, run the following command:
 
-bash
-
+```bash
 sudo ./vfio-switch.sh -p
+```
