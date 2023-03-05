@@ -75,16 +75,17 @@ load_kernel_module() {
   fi
 }
 
-load_kernel_module vfio_pci
+
 
 PREVIOUS_DRIVER_FILES=$(find previous_drivers -maxdepth 1 -type f -name '*_previous_driver.txt' 2>/dev/null)
 
 if [ "$PREVIOUS_DRIVER" = true ] && [ "$VFIO_DRIVER" = false ] || [ -n "$PREVIOUS_DRIVER_FILES" ]; then
     for IOMMUDEV_FILE in previous_drivers/*_previous_driver.txt; do
+        verbose_echo "----------"
         IOMMUDEV=${IOMMUDEV_FILE#previous_drivers/}
         IOMMUDEV=${IOMMUDEV%_previous_driver.txt}
         PREVIOUS_DRIVER=$(cat "$IOMMUDEV_FILE")
-        modprobe "$PREVIOUS_DRIVER"
+        load_kernel_module "$PREVIOUS_DRIVER"
         verbose_echo "Reloading $PREVIOUS_DRIVER driver for $IOMMUDEV"
         echo "$IOMMUDEV" > /sys/bus/pci/drivers/vfio-pci/unbind
         verbose_echo "load kernel module for driver $PREVIOUS_DRIVER"
@@ -97,20 +98,23 @@ if [ "$PREVIOUS_DRIVER" = true ] && [ "$VFIO_DRIVER" = false ] || [ -n "$PREVIOU
 else
     # Bind devices to vfio-pci
     if [ -n "$(ls -A /sys/class/iommu)" ]; then
+        load_kernel_module vfio_pci
         for DEV in $DEVS; do
-            for IOMMUDEV in /sys/bus/pci/devices/"$DEV"/iommu_group/devices/*; do
-                if [ -e "$IOMMUDEV" ] && [ ! -d "$IOMMUDEV" ] && [ ! -L "$IOMMUDEV" ] && [ "${IOMMUDEV##*/}" != "pci_bus" ]; then
-                CURRENT_DRIVER=$(basename "$(readlink -f "$IOMMUDEV"/driver)")
-                  if [ "$CURRENT_DRIVER" != "vfio-pci" ]; then
-                      verbose_echo "next is $IOMMUDEV unbind"
-                      echo "$IOMMUDEV" > /sys/bus/pci/drivers/"$CURRENT_DRIVER"/unbind
-                      verbose_echo "Save the driver of $IOMMUDEV => $CURRENT_DRIVER"
-                      echo "$CURRENT_DRIVER" > "previous_drivers/${IOMMUDEV}_previous_driver.txt"
-                      verbose_echo "next is $IOMMUDEV bind"
-                      echo "$IOMMUDEV" > /sys/bus/pci/drivers/vfio-pci/bind
-                  else
-                      verbose_echo "$IOMMUDEV is already bound to vfio-pci"
-                  fi
+            for IOMMUDEV_PATH in /sys/bus/pci/devices/"$DEV"/iommu_group/devices/*; do
+                IOMMUDEV=$(basename "$IOMMUDEV_PATH")
+                CURRENT_DRIVER=$(basename "$(readlink -f "$IOMMUDEV_PATH"/driver)")
+                if [ "$CURRENT_DRIVER" != "vfio-pci" ] && [ "$CURRENT_DRIVER" != "pcieport" ]; then
+                    verbose_echo "----------"
+                    verbose_echo "next is $IOMMUDEV unbind"
+                    echo "$IOMMUDEV" > /sys/bus/pci/drivers/"$CURRENT_DRIVER"/unbind
+                    verbose_echo "Save the driver of $IOMMUDEV => $CURRENT_DRIVER"
+                    mkdir previous_drivers 2>/dev/null
+                    echo "$CURRENT_DRIVER" > "previous_drivers/${IOMMUDEV}_previous_driver.txt"
+                    verbose_echo "next is $IOMMUDEV bind"
+                    echo "$IOMMUDEV" > /sys/bus/pci/drivers/vfio-pci/bind
+                elif [ "$CURRENT_DRIVER" = "vfio-pci" ]; then
+                    verbose_echo "----------"
+                    verbose_echo "$IOMMUDEV is already bound to vfio-pci"
                 fi
             done
         done
