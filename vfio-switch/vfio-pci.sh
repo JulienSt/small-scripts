@@ -14,9 +14,11 @@ usage() {
 VERBOSE=false
 VFIO_DRIVER=false
 PREVIOUS_DRIVER=false
+CHECK_FOR_VM=false
+VM_TO_CHECK=Windoof
 DEVS="0000:0b:00.0"
 
-OPTIONS=$(getopt -o vVpd:h --long verbose,vfio,previous,devices:,help -- "$@")
+OPTIONS=$(getopt -o vVpd:m:h --long verbose,vfio,previous,devices:,virtual_machine:,help -- "$@")
 eval set -- "$OPTIONS"
 while true; do
   case $1 in
@@ -32,8 +34,13 @@ while true; do
       PREVIOUS_DRIVER=true
       shift
       ;;
-    -d | --device )
+    -d | --devices )
       DEVS="$2"
+      shift 2
+      ;;
+    -m | --virtual_machine )
+      CHECK_FOR_VM=true
+      VM_TO_CHECK="$2"
       shift 2
       ;;
     -h | --help )
@@ -76,10 +83,13 @@ load_kernel_module() {
 }
 
 
-
 PREVIOUS_DRIVER_FILES=$(find previous_drivers -maxdepth 1 -type f -name '*_previous_driver.txt' 2>/dev/null)
 
 if [ "$PREVIOUS_DRIVER" = true ] && [ "$VFIO_DRIVER" = false ] || [ -n "$PREVIOUS_DRIVER_FILES" ]; then
+    if [[ -n $(virsh list --name | grep Windoof) ]]; then
+        echo "windoof is still running"
+        return 1
+    if
     for IOMMUDEV_FILE in previous_drivers/*_previous_driver.txt; do
         verbose_echo "----------"
         IOMMUDEV=${IOMMUDEV_FILE#previous_drivers/}
@@ -99,6 +109,18 @@ else
     # Bind devices to vfio-pci
     if [ -n "$(ls -A /sys/class/iommu)" ]; then
         load_kernel_module vfio_pci
+        DEVICE_IN_USE_COUNT=0
+        for DEV in $DEVS; do
+            if [ -n "$(lsof -e /run/user/1000/doc -e /run/user/1000/gvfs -- /sys/bus/pci/devices/"$DEV")" ]; then
+                echo "$DEV is still in use"
+                DEV=$((DEV+1))
+            fi
+        done
+        if [ $DEVICE_IN_USE_COUNT -gt 0 ]; then
+            echo "$DEVICE_IN_USE_COUNT devices are still in use by other processes,"
+            echo "those need to be cleared before applying the vfio driver to them."
+            return 1
+        fi
         for DEV in $DEVS; do
             for IOMMUDEV_PATH in /sys/bus/pci/devices/"$DEV"/iommu_group/devices/*; do
                 IOMMUDEV=$(basename "$IOMMUDEV_PATH")
