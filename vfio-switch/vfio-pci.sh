@@ -17,7 +17,7 @@ PREVIOUS_DRIVER=false
 CHECK_FOR_VM=false
 DEVS="0000:0b:00.0"
 
-OPTIONS=$(getopt -o vVpd:m:h --long verbose,vfio,previous,devices:,virtual_machine:,help -- "$@")
+OPTIONS=$(getopt -o vVpd:m:i:h --long verbose,vfio,previous,devices:,virtual_machine:,ignore:,help -- "$@")
 eval set -- "$OPTIONS"
 while true; do
   case $1 in
@@ -39,6 +39,8 @@ while true; do
       ;;
     -m | --virtual_machine )
       CHECK_FOR_VM=true
+      # If a virtual machine name is provided, set VM_TO_CHECK to that name,
+      # otherwise use the default value "Windoof".
       if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
         VM_TO_CHECK="$2"
         shift 2
@@ -46,6 +48,10 @@ while true; do
         VM_TO_CHECK=Windoof
         shift 1
       fi
+      ;;
+    -i | --ignore )
+      IGNORED="$2"
+      shift 2
       ;;
     -h | --help )
       usage
@@ -62,12 +68,13 @@ while true; do
   esac
 done
 
-
+# Check if the script is being run as root.
 if (( "$(id -u)" != 0 )); then
   echo "This script must be run as root."
   exit 1
 fi
 
+# This function prints messages if verbose output is enabled.
 verbose_echo() {
   if $VERBOSE ; then
     echo "$1"
@@ -75,6 +82,7 @@ verbose_echo() {
 }
 
 
+# This function loads a kernel module if it is not already loaded.
 load_kernel_module() {
   MODULE_NAME="$1"
   verbose_echo "attempting to load module for $MODULE_NAME"
@@ -101,6 +109,8 @@ if $PREVIOUS_DRIVER &&  ! $VFIO_DRIVER || [[ -n "$PREVIOUS_DRIVER_FILES" ]]; the
           load_kernel_module "$PREVIOUS_DRIVER"
           verbose_echo "Reloading $PREVIOUS_DRIVER driver for $IOMMUDEV"
           echo "$IOMMUDEV" > /sys/bus/pci/drivers/vfio-pci/unbind
+          verbose_echo "Remove the override for the device"
+          echo "" > /sys/bus/pci/devices/"$IOMMUDEV"/driver_override
           verbose_echo "load kernel module for driver $PREVIOUS_DRIVER"
           load_kernel_module "$PREVIOUS_DRIVER"
           verbose_echo "next is $IOMMUDEV bind"
@@ -111,19 +121,24 @@ if $PREVIOUS_DRIVER &&  ! $VFIO_DRIVER || [[ -n "$PREVIOUS_DRIVER_FILES" ]]; the
     fi
 else
     if [ -n "$(ls -A /sys/class/iommu)" ]; then
-        load_kernel_module vfio_pci
-        DEVICES_IN_USE=()
-        for DEV in $DEVS; do
-            if [[ -n "$(lsof -e /run/user/1000/doc -e /run/user/1000/gvfs -- /sys/bus/pci/devices/"$DEV")" ]]; then
-                DEVICES_IN_USE+=("$DEV")
-            fi
-        done
-        if (( ${#DEVICES_IN_USE[@]} > 0 )); then
-            echo "The following devices are still in use by other processes: ${DEVICES_IN_USE[*]}"
-            echo "check 'lsof -e /run/user/1000/doc -e /run/user/1000/gvfs -- /sys/bus/pci/devices/<DEV>' to see which processes block the device"
-            echo "those need to be cleared before applying the vfio driver to them."
-        else
+#         load_kernel_module vfio_pci
+#         DEVICES_IN_USE=()
+#         for DEV in $DEVS; do
+#             # Loop through each device in the specified IOMMU group
+#             for IOMMUDEV_PATH in /sys/bus/pci/devices/"$DEV"/iommu_group/devices/*; do
+#                 IOMMUDEV=$(basename "$IOMMUDEV_PATH")
+#                 if [[ ! "${IGNORED[*]}" =~ $IOMMUDEV || -n "$(lsof -e /run/user/1000/doc -e /run/user/1000/gvfs -e /tmp/.mount_jet* -- /sys/bus/pci/devices/"$IOMMUDEV" 2>&1)" ]]; then
+#                     DEVICES_IN_USE+=("$IOMMUDEV")
+#                 fi
+#             done
+#         done
+#         if (( ${#DEVICES_IN_USE[@]} > 0 )); then
+#             echo "The following devices are still in use by other processes: ${DEVICES_IN_USE[*]}"
+#             echo "check 'lsof -e /run/user/1000/doc -e /run/user/1000/gvfs -- /sys/bus/pci/devices/<DEV>' to see which processes block the device"
+#             echo "those need to be cleared before applying the vfio driver to them."
+#         else
           for DEV in $DEVS; do
+              # Loop through each device in the specified IOMMU group
               for IOMMUDEV_PATH in /sys/bus/pci/devices/"$DEV"/iommu_group/devices/*; do
                   IOMMUDEV=$(basename "$IOMMUDEV_PATH")
                   CURRENT_DRIVER=$(basename "$(readlink -f "$IOMMUDEV_PATH"/driver)")
@@ -134,6 +149,8 @@ else
                       verbose_echo "Save the driver of $IOMMUDEV => $CURRENT_DRIVER"
                       mkdir previous_drivers 2>/dev/null
                       echo "$CURRENT_DRIVER" > "previous_drivers/${IOMMUDEV}_previous_driver.txt"
+                      verbose_echo "next is the driver override"
+                      echo vfio-pci > /sys/bus/pci/devices/"$IOMMUDEV"/driver_override
                       verbose_echo "next is $IOMMUDEV bind"
                       echo "$IOMMUDEV" > /sys/bus/pci/drivers/vfio-pci/bind
                   elif [[ "$CURRENT_DRIVER" = "vfio-pci" ]]; then
@@ -142,6 +159,6 @@ else
                   fi
               done
           done
-        fi
+#         fi
     fi
 fi
