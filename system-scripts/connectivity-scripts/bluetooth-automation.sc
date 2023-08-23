@@ -2,13 +2,7 @@
 
 import scala.util.{Try, Failure, Success}
 
-def call(command: String*) = {
-    String(os.proc(command).call().out.bytes)
-}
-
-val uid = call("id", "-u").trim.toInt
-
-if (uid == 0) {
+if (isRoot) {
 
     if (!call("bluetoothctl", "show").contains("Powered: yes")) {
         Try(call("bluetoothctl", "power", "on")) match {
@@ -36,5 +30,5 @@ if (uid == 0) {
     }
 
 } else {
-    println(s"Script must be executed as root. Current userID: ${uid}")
+    println(s"Script must be executed as root. Current userID: $currentUID")
 }

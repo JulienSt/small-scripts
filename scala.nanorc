@@ -1,0 +1,41 @@
+## Scala
+syntax "Scala" "\.(scala|sc|sbt)$"
+
+# Shebang
+color grey "\#\!/usr/bin/env amm"
+
+# Numbers (including hexadecimal)
+color magenta "\<[-+]?\d+(\.\d+)?\>"
+color magenta "0x[0-9a-fA-F]+"
+
+# special values
+color pink "\<true\>"
+color pink "\<false\>"
+color red "\<null\>" 
+#             ^ should stick out like sore thumb
+
+# Keywords
+color orange "\<(abstract|case|catch|class|def|do|else|extends|final|finally|for|if|implicit|import|match|new|object|override|package|private|protected|return|sealed|super|this|throw|trait|try|type|val|var|while|with|yield)\>"
+
+# Soft Keywords
+color latte "\<(infix|inline|opaque|open|transparent|as|derives|end|extension|throws|using|lazy)\>"
+
+# Symbols
+color grey "(\#|\%|\^|\&|\*|\(|\)|\-|\+|\=|\||\[|\]|\{|\}|\;|\:|\,|\<|\>|\.|/\|?!|\~)"
+
+# Classes
+color magenta "\<[A-Z][A-Za-z0-9_]*\>"
+
+# Comments
+color latte start="//" end="$"
+color latte start="/\*" end="\*/"
+
+# Annotations
+color brightyellow "@[A-Za-z_][A-Za-z0-9_]*"
+
+# Strings & Splices
+color brightcyan start="\"" end="\""
+color brightcyan start="\<(s")|([^[w+]]s")" end="(\$\w+|\$\{\w+\}|\")"
+color brightcyan start="(\$\w+|\$\{\w+\})" end="\""
+color white "(\$\w+|\$\{\w+\})"
+color grey "(\$\{|\})"
